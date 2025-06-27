@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../halaman_validasi/invoice_page.dart'; // Pastikan path ini sesuai dengan struktur folder Anda
+import '../halaman_validasi/transaction_page.dart'; // Ganti ke transaction_page.dart
 // untuk FilteringTextInputFormatter
 
 void main() {
@@ -21,6 +21,11 @@ class _FFTopUpPageState extends State<FFTopUpPage> {
   String? _selectedDiamondPrice;
   String? _selectedPayment;
   final _emailController = TextEditingController();
+
+  // Tambahkan ScrollController dan GlobalKey untuk validasi seperti ML
+  final _scrollController = ScrollController();
+  final _diamondKey = GlobalKey();
+  final _paymentKey = GlobalKey();
 
   final List<Map<String, String>> diamonds = [
     {"label": "5 Diamonds", "price": "Rp. 1.000"},
@@ -60,66 +65,86 @@ class _FFTopUpPageState extends State<FFTopUpPage> {
     "Telkomsel": "assets/payment/telkomsel.png",
   };
 
-  void _showOrderDetails() {
-    // 4) Sebelum menampilkan dialog, panggil validate()
-    if (_formKey.currentState!.validate()) {
-      // Jika semua field valid (tidak kosong), tampilkan detail pesanan
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: Text("Detail Pesanan"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Masukkan Player ID: ${_userIdController.text}"),
-              Text("Diamond: $_selectedDiamondLabel"),
-              Text("Harga: $_selectedDiamondPrice"),
-              Text("Metode Pembayaran: $_selectedPayment"),
-              Text("Email: ${_emailController.text}"),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("Batal"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // 5) Jika konfirmasi, simpan data atau lakukan aksi lain
-                // Misalnya, simpan ke database atau kirim ke server
-                final orderId = "FF-${timestamp.toString()}";
-                final transactionId = "TX-${timestamp.toString()}";
-                final orderDate = DateTime.now();
-
-                // Tampilkan invoice atau halaman konfirmasi
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => InvoicePage(
-                      topUpItem: _selectedDiamondLabel!,
-                      userInfo: _userIdController.text,
-                      orderId: orderId,
-                      transactionId: transactionId,
-                      orderDate: orderDate,
-                      paymentMethod: _selectedPayment!,
-                      totalPayment: double.parse(
-                        _selectedDiamondPrice!.replaceAll(
-                          RegExp(r'[^0-9]'),
-                          '',
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-              child: Text("Konfirmasi"),
-            ),
-          ],
-        ),
+  // Fungsi untuk scroll ke key tertentu (sama seperti ML)
+  void _scrollToKey(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
       );
     }
-    // Jika validasi gagal, maka TextFormField yang kosong akan menampilkan border merah & errorText
+  }
+
+  // Ganti fungsi _showOrderDetails dengan _validateAndShowDetails seperti ML
+  void _validateAndShowDetails() {
+    final formValid = _formKey.currentState?.validate() ?? false;
+    bool diamondValid = _selectedDiamondLabel != null;
+    bool paymentValid = _selectedPayment != null;
+
+    if (!formValid) return;
+    if (!diamondValid) {
+      _scrollToKey(_diamondKey);
+      setState(() {});
+      return;
+    }
+
+    if (!paymentValid) {
+      _scrollToKey(_paymentKey);
+      setState(() {});
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text("Detail Pesanan"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Masukkan Player ID: ${_userIdController.text}"),
+            Text("Diamond: $_selectedDiamondLabel"),
+            Text("Harga: $_selectedDiamondPrice"),
+            Text("Metode Pembayaran: $_selectedPayment"),
+            Text("Email: ${_emailController.text}"),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Batal"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // tutup dialog
+              // navigasi ke TransactionPage seperti ML
+              final now = DateTime.now();
+              final toString = now.millisecondsSinceEpoch.toString();
+              final timestamp = toString.substring(toString.length - 6);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TransactionPage(
+                    userInfo: _userIdController.text,
+                    orderId: now.millisecondsSinceEpoch.toString(),
+                    transactionId: 'TXN$timestamp',
+                    orderDate: DateTime.now(),
+                    paymentMethod: _selectedPayment!,
+                    topUpItem: 'Free Fire $_selectedDiamondLabel',
+                    totalPayment: double.parse(
+                      _selectedDiamondPrice!.replaceAll(RegExp(r'[^0-9]'), ''),
+                    ),
+                  ),
+                ),
+              );
+            },
+            child: Text("Konfirmasi"),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildPaymentMethodRow(
@@ -176,8 +201,8 @@ class _FFTopUpPageState extends State<FFTopUpPage> {
     return Scaffold(
       appBar: AppBar(title: Text("Top Up Free Fire")),
       body: SingleChildScrollView(
+        controller: _scrollController, // Tambahkan controller
         padding: EdgeInsets.all(16),
-        // 3) Bungkus formKey pada Form
         child: Form(
           key: _formKey,
           child: Column(
@@ -207,7 +232,6 @@ class _FFTopUpPageState extends State<FFTopUpPage> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        // 1) Ubah jadi TextFormField untuk User ID
                         Expanded(
                           flex: 2,
                           child: TextFormField(
@@ -231,7 +255,6 @@ class _FFTopUpPageState extends State<FFTopUpPage> {
                             },
                           ),
                         ),
-
                         SizedBox(width: 12),
                       ],
                     ),
@@ -250,6 +273,7 @@ class _FFTopUpPageState extends State<FFTopUpPage> {
               /// Section: Pilih Jumlah Diamonds Free Fire
               /// =======================
               Container(
+                key: _diamondKey, // Tambahkan key
                 width: double.infinity,
                 padding: EdgeInsets.all(12),
                 margin: EdgeInsets.only(bottom: 16),
@@ -339,6 +363,7 @@ class _FFTopUpPageState extends State<FFTopUpPage> {
               /// Section: Pilih Metode Pembayaran
               /// =======================
               Container(
+                key: _paymentKey, // Tambahkan key
                 width: double.infinity,
                 padding: EdgeInsets.all(12),
                 margin: EdgeInsets.only(bottom: 16),
@@ -373,7 +398,7 @@ class _FFTopUpPageState extends State<FFTopUpPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _showOrderDetails, // Validasi & tampilkan dialog
+                  onPressed: _validateAndShowDetails, // Ganti fungsi
                   style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
