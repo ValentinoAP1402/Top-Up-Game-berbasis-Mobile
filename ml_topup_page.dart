@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../halaman_validasi/invoice_page.dart';
+import '../halaman_validasi/transaction_page.dart';
 // pastikan path ini sesuai dengan struktur project kamu
 
 void main() {
@@ -119,14 +119,14 @@ class _MLTopUpPageState extends State<MLTopUpPage> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context); // tutup dialog
-              // navigasi ke halaman invoice
+              // navigasi ke halaman transaksi
               final now = DateTime.now();
               final toString = now.millisecondsSinceEpoch.toString();
               final timestamp = toString.substring(toString.length - 6);
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => InvoicePage(
+                  builder: (_) => TransactionPage(
                     userInfo:
                         _userIdController.text + "(${_zoneIdController.text})",
                     orderId: now.millisecondsSinceEpoch.toString(),
