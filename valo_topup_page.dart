@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../halaman_validasi/invoice_page.dart'; // untuk FilteringTextInputFormatter
+import '../halaman_validasi/transaction_page.dart'; // Update import untuk transaction_page
 
 void main() {
   runApp(MaterialApp(home: VALOTopUpPage()));
@@ -19,7 +19,10 @@ class _VALOTopUpPageState extends State<VALOTopUpPage> {
   String? _selectedDiamondLabel;
   String? _selectedDiamondPrice;
   String? _selectedPayment;
-  final _emailController = TextEditingController();
+
+  final _scrollController = ScrollController();
+  final _vpKey = GlobalKey();
+  final _paymentKey = GlobalKey();
 
   final List<Map<String, String>> diamonds = [
     {"label": "475 VP", "price": "Rp. 56.000"},
@@ -52,106 +55,81 @@ class _VALOTopUpPageState extends State<VALOTopUpPage> {
     "Telkomsel": "assets/payment/telkomsel.png",
   };
 
-  void _showOrderDetails() {
-    // 4) Sebelum menampilkan dialog, panggil validate()
-    if (_formKey.currentState!.validate()) {
-      // Jika semua field valid (tidak kosong), tampilkan detail pesanan
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: Text("Detail Pesanan"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Masukkan Riot ID Anda: ${_userIdController.text}"),
-              Text("VP: $_selectedDiamondLabel"),
-              Text("Harga: $_selectedDiamondPrice"),
-              Text("Metode Pembayaran: $_selectedPayment"),
-              Text("Email: ${_emailController.text}"),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("Batal"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // 5) Jika tombol konfirmasi ditekan, navigasi ke halaman invoice
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => InvoicePage(
-                      topUpItem: "Top Up Valorant $_selectedDiamondLabel",
-                      userInfo: _userIdController.text,
-                      orderId: "VALO-${timestamp}",
-                      transactionId: "TX-${timestamp}",
-                      orderDate: DateTime.now(),
-                      paymentMethod: _selectedPayment ?? "Tidak ada",
-                      totalPayment: double.parse(
-                        _selectedDiamondPrice!
-                            .replaceAll("Rp. ", "")
-                            .replaceAll(".", ""),
-                      ),
-                    ),
-                  ),
-                );
-              },
-              child: Text("Konfirmasi"),
-            ),
-          ],
-        ),
+  void _scrollToKey(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
       );
     }
-    // Jika validasi gagal, maka TextFormField yang kosong akan menampilkan border merah & errorText
   }
 
-  Widget _buildPaymentMethodRow(
-    String imagePath,
-    String price,
-    String paymentKey,
-  ) {
-    final bool isSelected = _selectedPayment == paymentKey;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedPayment = paymentKey;
-        });
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6.0),
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: isSelected ? Colors.blue : Colors.grey.shade300,
-            width: isSelected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
+  void _validateAndShowDetails() {
+    final formValid = _formKey.currentState?.validate() ?? false;
+    bool vpValid = _selectedDiamondLabel != null;
+    bool paymentValid = _selectedPayment != null;
+
+    if (!formValid) return;
+    if (!vpValid) {
+      _scrollToKey(_vpKey);
+      setState(() {});
+      return;
+    }
+
+    if (!paymentValid) {
+      _scrollToKey(_paymentKey);
+      setState(() {});
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text("Detail Pesanan"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.asset(imagePath, width: 36, height: 36),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                paymentKey,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isSelected ? Colors.blue : Colors.black,
-                ),
-              ),
-            ),
-            Text(
-              price,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: isSelected ? Colors.blue : Colors.black,
-              ),
-            ),
+            Text("Riot ID: ${_userIdController.text}"),
+            Text("VP: $_selectedDiamondLabel"),
+            Text("Harga: $_selectedDiamondPrice"),
+            Text("Metode Pembayaran: $_selectedPayment"),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Batal"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // tutup dialog
+              // navigasi ke halaman transaksi
+              final now = DateTime.now();
+              final toString = now.millisecondsSinceEpoch.toString();
+              final timestamp = toString.substring(toString.length - 6);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TransactionPage(
+                    userInfo: _userIdController.text,
+                    orderId: now.millisecondsSinceEpoch.toString(),
+                    transactionId: 'TXN$timestamp',
+                    orderDate: DateTime.now(),
+                    paymentMethod: _selectedPayment!,
+                    topUpItem: 'Valorant $_selectedDiamondLabel',
+                    totalPayment: double.parse(
+                      _selectedDiamondPrice!.replaceAll(RegExp(r'[^0-9]'), ''),
+                    ),
+                  ),
+                ),
+              );
+            },
+            child: Text("Konfirmasi"),
+          ),
+        ],
       ),
     );
   }
@@ -161,15 +139,13 @@ class _VALOTopUpPageState extends State<VALOTopUpPage> {
     return Scaffold(
       appBar: AppBar(title: Text("Top Up Valorant")),
       body: SingleChildScrollView(
+        controller: _scrollController,
         padding: EdgeInsets.all(16),
-        // 3) Bungkus formKey pada Form
         child: Form(
           key: _formKey,
           child: Column(
             children: [
-              /// =======================
-              /// Section: Masukkan Riot ID
-              /// =======================
+              /// Section: Riot ID
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.all(12),
@@ -189,44 +165,32 @@ class _VALOTopUpPageState extends State<VALOTopUpPage> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        // 1) Ubah jadi TextFormField untuk User ID
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            controller: _userIdController,
-                            textAlign: TextAlign.center,
-                            keyboardType: TextInputType.text,
-                            maxLength: 20,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                RegExp(r'^[a-zA-Z0-9#]+$'),
-                              ),
-                            ],
-                            decoration: InputDecoration(
-                              hintText: "Masukkan Riot ID Anda",
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return "⚠ Masukkan Riot ID Anda";
-                              }
-                              return null;
-                            },
-                          ),
+                    SizedBox(height: 8),
+                    TextFormField(
+                      controller: _userIdController,
+                      textAlign: TextAlign.center,
+                      keyboardType: TextInputType.text,
+                      maxLength: 20,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^[a-zA-Z0-9#]+$'),
                         ),
-
-                        SizedBox(width: 12),
                       ],
+                      decoration: InputDecoration(
+                        hintText: "Masukkan Riot ID Anda",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? "⚠ Masukkan Riot ID Anda"
+                          : null,
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Text(
-                      "Untuk menemukan Riot ID Anda,"
-                      "buka halaman profil akun dan salin Riot ID+Tag menggunakan tombol yang tersedia disamping Riot ID."
+                      "Untuk menemukan Riot ID Anda, "
+                      "buka halaman profil akun dan salin Riot ID+Tag menggunakan tombol yang tersedia disamping Riot ID. "
                       "Contoh: Westbourne#SEA",
                       style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                     ),
@@ -234,10 +198,9 @@ class _VALOTopUpPageState extends State<VALOTopUpPage> {
                 ),
               ),
 
-              /// =======================
-              /// Section: Pilih Jumlah Valorant Points (VP)
-              /// =======================
+              /// Section: VP
               Container(
+                key: _vpKey,
                 width: double.infinity,
                 padding: EdgeInsets.all(12),
                 margin: EdgeInsets.only(bottom: 16),
@@ -256,58 +219,22 @@ class _VALOTopUpPageState extends State<VALOTopUpPage> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     ...diamonds.map((d) {
                       final label = d["label"]!;
                       final price = d["price"]!;
-                      final isSelected = _selectedDiamondLabel == label;
                       return RadioListTile<String>(
                         value: label,
                         groupValue: _selectedDiamondLabel,
-                        contentPadding: EdgeInsets.zero,
                         activeColor: Colors.blue,
                         title: Row(
                           children: [
-                            Expanded(
-                              flex: 2,
-                              child: Row(
-                                children: [
-                                  Image.asset(
-                                    'assets/payment/vp.png',
-                                    height: 24,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    label,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: isSelected
-                                          ? Colors.blue
-                                          : Colors.black,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              flex: 1,
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: FractionallySizedBox(
-                                  widthFactor: 0.5,
-                                  child: Text(
-                                    price,
-                                    textAlign: TextAlign.left,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: isSelected
-                                          ? Colors.blue
-                                          : Colors.black,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                            Image.asset('assets/payment/vp.png', height: 24),
+                            SizedBox(width: 8),
+                            Expanded(child: Text(label)),
+                            Text(
+                              price,
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -318,15 +245,14 @@ class _VALOTopUpPageState extends State<VALOTopUpPage> {
                           });
                         },
                       );
-                    }).toList(),
+                    }),
                   ],
                 ),
               ),
 
-              /// =======================
-              /// Section: Pilih Metode Pembayaran
-              /// =======================
+              /// Section: Payment
               Container(
+                key: _paymentKey,
                 width: double.infinity,
                 padding: EdgeInsets.all(12),
                 margin: EdgeInsets.only(bottom: 16),
@@ -345,23 +271,54 @@ class _VALOTopUpPageState extends State<VALOTopUpPage> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Column(
                       children: payments.map((p) {
-                        final price = _selectedDiamondPrice ?? "Rp. 0";
-                        final imagePath = paymentImages[p]!;
-                        return _buildPaymentMethodRow(imagePath, price, p);
+                        final isSelected = _selectedPayment == p;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() => _selectedPayment = p);
+                          },
+                          child: Container(
+                            margin: EdgeInsets.symmetric(vertical: 6),
+                            padding: EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: isSelected
+                                    ? Colors.blue
+                                    : Colors.grey.shade300,
+                                width: isSelected ? 2 : 1,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Image.asset(
+                                  paymentImages[p]!,
+                                  width: 36,
+                                  height: 36,
+                                ),
+                                SizedBox(width: 12),
+                                Expanded(child: Text(p)),
+                                Text(
+                                  _selectedDiamondPrice ?? "Rp. 0",
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
                       }).toList(),
                     ),
                   ],
                 ),
               ),
 
-              /// Tombol Beli Sekarang
+              /// Button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _showOrderDetails, // Validasi & tampilkan dialog
+                  onPressed: _validateAndShowDetails,
                   style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
