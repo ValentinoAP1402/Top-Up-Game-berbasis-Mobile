@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // untuk FilteringTextInputFormatter
-import '../halaman_validasi/invoice_page.dart';
+import '../halaman_validasi/transaction_page.dart'; // Import transaction page
 
 void main() {
   runApp(MaterialApp(home: GITopUpPage()));
@@ -59,7 +59,9 @@ class _GITopUpPageState extends State<GITopUpPage> {
   /// Fungsi untuk menampilkan dialog detail pesanan,
   /// setelah semua field di-form berhasil divalidasi.
   void _showOrderDetails() {
-    if (_formKey.currentState!.validate()) {
+    if (_formKey.currentState!.validate() &&
+        _selectedDiamondLabel != null &&
+        _selectedPayment != null) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -82,29 +84,29 @@ class _GITopUpPageState extends State<GITopUpPage> {
             ),
             ElevatedButton(
               onPressed: () {
-                // Simulasi proses pembelian
-                final orderId = "GI-${timestamp.toString().substring(0, 8)}";
-                final transactionId =
-                    "TX-${timestamp.toString().substring(0, 8)}";
-                final orderDate = DateTime.now();
-                final totalPayment = double.parse(
-                  _selectedDiamondPrice!
-                      .replaceAll("Rp. ", "")
-                      .replaceAll(".", ""),
-                );
+                Navigator.pop(ctx); // Tutup dialog
 
-                // Navigasi ke halaman invoice dengan detail pesanan
+                // Navigasi ke halaman transaksi seperti di ML
+                final now = DateTime.now();
+                final toString = now.millisecondsSinceEpoch.toString();
+                final timestamp = toString.substring(toString.length - 6);
+
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => InvoicePage(
-                      topUpItem: "Top Up Genshin Impact",
-                      userInfo: _userIdController.text,
-                      orderId: orderId,
-                      transactionId: transactionId,
-                      orderDate: orderDate,
+                    builder: (context) => TransactionPage(
+                      userInfo: "${_userIdController.text} ($_selectedServer)",
+                      orderId: now.millisecondsSinceEpoch.toString(),
+                      transactionId: 'TXN$timestamp',
+                      orderDate: DateTime.now(),
                       paymentMethod: _selectedPayment!,
-                      totalPayment: totalPayment,
+                      topUpItem: 'Genshin Impact $_selectedDiamondLabel',
+                      totalPayment: double.parse(
+                        _selectedDiamondPrice!.replaceAll(
+                          RegExp(r'[^0-9]'),
+                          '',
+                        ),
+                      ),
                     ),
                   ),
                 );
@@ -311,6 +313,16 @@ class _GITopUpPageState extends State<GITopUpPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    // Add validation message for diamond selection
+                    if (_selectedDiamondLabel == null &&
+                        _formKey.currentState?.validate() == false)
+                      Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          "⚠ Pilih nominal Genshin Crystal",
+                          style: TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
                     ...diamonds.map((d) {
                       final label = d["label"]!;
                       final price = d["price"]!;
@@ -400,6 +412,16 @@ class _GITopUpPageState extends State<GITopUpPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    // Add validation message for payment selection
+                    if (_selectedPayment == null &&
+                        _formKey.currentState?.validate() == false)
+                      Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          "⚠ Pilih metode pembayaran",
+                          style: TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
                     Column(
                       children: payments.map((p) {
                         final price = _selectedDiamondPrice ?? "Rp. 0";
