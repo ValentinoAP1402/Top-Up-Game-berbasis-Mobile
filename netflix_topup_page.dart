@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../halaman_validasi/invoice_page.dart'; // untuk FilteringTextInputFormatter
+import '../halaman_validasi/transaction_page.dart'; // Ganti dari invoice_page.dart ke transaction_page.dart
 
 void main() {
   runApp(MaterialApp(home: NFTopUpPage()));
@@ -19,6 +19,10 @@ class _NFTopUpPageState extends State<NFTopUpPage> {
   String? _selectedDiamondLabel;
   String? _selectedDiamondPrice;
   String? _selectedPayment;
+
+  final _scrollController = ScrollController();
+  final _diamondKey = GlobalKey();
+  final _paymentKey = GlobalKey();
 
   final List<Map<String, String>> diamonds = [
     {"label": "1 Bulan", "price": "Rp. 24.000"},
@@ -48,63 +52,82 @@ class _NFTopUpPageState extends State<NFTopUpPage> {
     "Telkomsel": "assets/payment/telkomsel.png",
   };
 
-  void _showOrderDetails() {
-    // 4) Sebelum menampilkan dialog, panggil validate()
-    if (_formKey.currentState!.validate()) {
-      // Jika semua field valid (tidak kosong), tampilkan detail pesanan
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: Text("Detail Pesanan"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Akun Sharing: $_selectedDiamondLabel"),
-              Text("Harga: $_selectedDiamondPrice"),
-              Text("Metode Pembayaran: $_selectedPayment"),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("Batal"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // 5) Jika tombol Konfirmasi ditekan, navigasi ke halaman Invoice
-                final orderId = "NF-${timestamp.toString()}";
-                final transactionId = "TX-${timestamp.toString()}";
-                final orderDate = DateTime.now();
-                final userInfo =
-                    "User: John Doe"; // Ganti dengan data user sebenarnya
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => InvoicePage(
-                      userInfo: userInfo,
-                      orderId: orderId,
-                      transactionId: transactionId,
-                      orderDate: orderDate,
-                      paymentMethod: _selectedPayment!,
-                      topUpItem: _selectedDiamondLabel!,
-                      totalPayment: double.parse(
-                        _selectedDiamondPrice!
-                            .replaceAll("Rp. ", "")
-                            .replaceAll(".", ""),
-                      ),
-                    ),
-                  ),
-                );
-              },
-              child: Text("Konfirmasi"),
-            ),
-          ],
-        ),
+  void _scrollToKey(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
       );
     }
-    // Jika validasi gagal, maka TextFormField yang kosong akan menampilkan border merah & errorText
+  }
+
+  void _validateAndShowDetails() {
+    // Validasi untuk diamond selection
+    bool diamondValid = _selectedDiamondLabel != null;
+    bool paymentValid = _selectedPayment != null;
+
+    if (!diamondValid) {
+      _scrollToKey(_diamondKey);
+      setState(() {});
+      return;
+    }
+
+    if (!paymentValid) {
+      _scrollToKey(_paymentKey);
+      setState(() {});
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text("Detail Pesanan"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Akun Sharing: $_selectedDiamondLabel"),
+            Text("Harga: $_selectedDiamondPrice"),
+            Text("Metode Pembayaran: $_selectedPayment"),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Batal"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // tutup dialog
+              // navigasi ke halaman transaksi
+              final now = DateTime.now();
+              final toString = now.millisecondsSinceEpoch.toString();
+              final timestamp = toString.substring(toString.length - 6);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TransactionPage(
+                    userInfo:
+                        "Netflix User", // Bisa diganti dengan data user sebenarnya
+                    orderId: now.millisecondsSinceEpoch.toString(),
+                    transactionId: 'TXN$timestamp',
+                    orderDate: DateTime.now(),
+                    paymentMethod: _selectedPayment!,
+                    topUpItem: 'Netflix $_selectedDiamondLabel',
+                    totalPayment: double.parse(
+                      _selectedDiamondPrice!.replaceAll(RegExp(r'[^0-9]'), ''),
+                    ),
+                  ),
+                ),
+              );
+            },
+            child: Text("Konfirmasi"),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildPaymentMethodRow(
@@ -161,20 +184,17 @@ class _NFTopUpPageState extends State<NFTopUpPage> {
     return Scaffold(
       appBar: AppBar(title: Text("Netflix")),
       body: SingleChildScrollView(
+        controller: _scrollController,
         padding: EdgeInsets.all(16),
-        // 3) Bungkus formKey pada Form
         child: Form(
           key: _formKey,
           child: Column(
             children: [
               /// =======================
-              /// Section: Pilih Voucher
-              /// =======================
-
-              /// =======================
               /// Section: Pilih Jumlah Voucher Netflix
               /// =======================
               Container(
+                key: _diamondKey,
                 width: double.infinity,
                 padding: EdgeInsets.all(12),
                 margin: EdgeInsets.only(bottom: 16),
@@ -260,6 +280,7 @@ class _NFTopUpPageState extends State<NFTopUpPage> {
               /// Section: Pilih Metode Pembayaran
               /// =======================
               Container(
+                key: _paymentKey,
                 width: double.infinity,
                 padding: EdgeInsets.all(12),
                 margin: EdgeInsets.only(bottom: 16),
@@ -294,7 +315,8 @@ class _NFTopUpPageState extends State<NFTopUpPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _showOrderDetails, // Validasi & tampilkan dialog
+                  onPressed:
+                      _validateAndShowDetails, // Validasi & tampilkan dialog
                   style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
