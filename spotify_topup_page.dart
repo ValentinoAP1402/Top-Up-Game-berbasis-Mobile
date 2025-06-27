@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../halaman_validasi/invoice_page.dart'; // untuk FilteringTextInputFormatter
+import '../halaman_validasi/transaction_page.dart'; // Change import to transaction_page
 
 void main() {
   runApp(MaterialApp(home: SFTopUpPage()));
@@ -18,6 +18,11 @@ class _SFTopUpPageState extends State<SFTopUpPage> {
   String? _selectedDiamondLabel;
   String? _selectedDiamondPrice;
   String? _selectedPayment;
+
+  // Add scroll controller and keys for validation feedback
+  final _scrollController = ScrollController();
+  final _voucherKey = GlobalKey();
+  final _paymentKey = GlobalKey();
 
   final List<Map<String, String>> diamonds = [
     {"label": "1 Bulan", "price": "Rp. 54.500"},
@@ -47,63 +52,86 @@ class _SFTopUpPageState extends State<SFTopUpPage> {
     "Telkomsel": "assets/payment/telkomsel.png",
   };
 
-  void _showOrderDetails() {
-    // 4) Sebelum menampilkan dialog, panggil validate()
-    if (_formKey.currentState!.validate()) {
-      // Jika semua field valid (tidak kosong), tampilkan detail pesanan
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: Text("Detail Pesanan"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Voucher: $_selectedDiamondLabel"),
-              Text("Harga: $_selectedDiamondPrice"),
-              Text("Metode Pembayaran: $_selectedPayment"),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("Batal"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // 5) Jika tombol konfirmasi ditekan, navigasi ke halaman invoice
-                final orderId = "SF-${timestamp.toString()}";
-                final transactionId = "TX-${timestamp.toString()}";
-                final orderDate = DateTime.now();
-                final userInfo =
-                    "User: John Doe"; // Ganti dengan data user sebenarnya
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => InvoicePage(
-                      userInfo: userInfo,
-                      orderId: orderId,
-                      transactionId: transactionId,
-                      orderDate: orderDate,
-                      paymentMethod: _selectedPayment!,
-                      topUpItem: _selectedDiamondLabel!,
-                      totalPayment: double.parse(
-                        _selectedDiamondPrice!
-                            .replaceAll("Rp. ", "")
-                            .replaceAll(".", ""),
-                      ),
-                    ),
-                  ),
-                );
-              },
-              child: Text("Konfirmasi"),
-            ),
-          ],
-        ),
+  // Add scroll to key function
+  void _scrollToKey(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
       );
     }
-    // Jika validasi gagal, maka TextFormField yang kosong akan menampilkan border merah & errorText
+  }
+
+  // Update validation method similar to ML page
+  void _validateAndShowDetails() {
+    bool voucherValid = _selectedDiamondLabel != null;
+    bool paymentValid = _selectedPayment != null;
+
+    if (!voucherValid) {
+      _scrollToKey(_voucherKey);
+      setState(() {});
+      return;
+    }
+
+    if (!paymentValid) {
+      _scrollToKey(_paymentKey);
+      setState(() {});
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text("Detail Pesanan"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Voucher: $_selectedDiamondLabel"),
+            Text("Harga: $_selectedDiamondPrice"),
+            Text("Metode Pembayaran: $_selectedPayment"),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Batal"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              // Navigate to transaction page instead of invoice page
+              final now = DateTime.now();
+              final toString = now.millisecondsSinceEpoch.toString();
+              final timestamp = toString.substring(toString.length - 6);
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TransactionPage(
+                    userInfo:
+                        "Spotify Premium User", // Generic user info for Spotify
+                    orderId: now.millisecondsSinceEpoch.toString(),
+                    transactionId: 'TXN$timestamp',
+                    orderDate: DateTime.now(),
+                    paymentMethod: _selectedPayment!,
+                    topUpItem: 'Spotify Premium $_selectedDiamondLabel',
+                    totalPayment: double.parse(
+                      _selectedDiamondPrice!
+                          .replaceAll("Rp. ", "")
+                          .replaceAll(".", ""),
+                    ),
+                  ),
+                ),
+              );
+            },
+            child: Text("Konfirmasi"),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildPaymentMethodRow(
@@ -160,8 +188,8 @@ class _SFTopUpPageState extends State<SFTopUpPage> {
     return Scaffold(
       appBar: AppBar(title: Text("Spotify Premium")),
       body: SingleChildScrollView(
+        controller: _scrollController, // Add scroll controller
         padding: EdgeInsets.all(16),
-        // 3) Bungkus formKey pada Form
         child: Form(
           key: _formKey,
           child: Column(
@@ -169,11 +197,8 @@ class _SFTopUpPageState extends State<SFTopUpPage> {
               /// =======================
               /// Section: Pilih Voucher
               /// =======================
-
-              /// =======================
-              /// Section: Pilih Jumlah Voucher Spotify
-              /// =======================
               Container(
+                key: _voucherKey, // Add key for validation feedback
                 width: double.infinity,
                 padding: EdgeInsets.all(12),
                 margin: EdgeInsets.only(bottom: 16),
@@ -259,6 +284,7 @@ class _SFTopUpPageState extends State<SFTopUpPage> {
               /// Section: Pilih Metode Pembayaran
               /// =======================
               Container(
+                key: _paymentKey, // Add key for validation feedback
                 width: double.infinity,
                 padding: EdgeInsets.all(12),
                 margin: EdgeInsets.only(bottom: 16),
@@ -293,7 +319,7 @@ class _SFTopUpPageState extends State<SFTopUpPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _showOrderDetails, // Validasi & tampilkan dialog
+                  onPressed: _validateAndShowDetails, // Updated method name
                   style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
